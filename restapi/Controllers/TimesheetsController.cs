@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using restapi.Models;
 
 namespace restapi.Controllers
@@ -30,6 +31,128 @@ namespace restapi.Controllers
             if (timecard != null) 
             {
                 return Ok(timecard);
+            }
+            else
+            {
+                return NotFound();
+            }
+        }
+
+        // Remove (DELETE) a draft or cancelled timecard
+        [HttpDelete("{id}")]
+        [Produces(ContentTypes.Transition)]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(typeof(InvalidStateError), 409)]
+        public IActionResult deleteTimecard(string id) {
+
+            Timecard timeCard = Database.Find(id);
+            if (timeCard == null)
+            {
+                return NotFound();
+            }
+
+            if (!timeCard.CanBeDeleted())
+            {
+                return StatusCode(409, new InvalidStateError() { });
+
+            }
+
+            Database.Delete(timeCard);
+
+            Transition transition = new Transition(new Deletion());
+            return Ok(transition);
+        }
+
+        // Replace (POST) a complete line item
+        [HttpPost("{id}/lines/{lineId}")]
+        [ProducesResponseType(typeof(AnnotatedTimecardLine), 200)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(typeof(InvalidStateError), 409)]
+        public IActionResult replaceLine(string id, Guid lineId, [FromBody] TimecardLine line)
+        {
+            Timecard timeCard = Database.Find(id);
+            // if timecard not found, or line not in timecard, return not found
+            if (timeCard == null || !timeCard.HasLine(lineId))
+            {
+                return NotFound();
+            }
+            // if timecard isn't a draft, it can't be edited
+            else if (timeCard.Status != TimecardStatus.Draft)
+            {
+                return StatusCode(409, new InvalidStateError() { });
+            }
+
+            // This now completely replaces the existing line with
+            // all of the input from POST parameter, so everything except
+            // the ID changes. User must remember to change all parameters
+            // since unincluded parameters are set to 0.
+            TimecardLine resultLine = timeCard.ReplaceLine(lineId, line);
+            return Ok(resultLine);
+        }
+
+        // Update (PATCH) a line item
+        [HttpPatch("{id}/lines/{lineId}")]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(typeof(AnnotatedTimecardLine), 200)]
+        [ProducesResponseType(typeof(InvalidStateError), 409)]
+        public IActionResult updateLine(string id, Guid lineId, [FromBody] JObject line)
+        {
+            Timecard timeCard = Database.Find(id);
+            // if timecard not found, or line not in timecard, return not found
+            if (timeCard == null || !timeCard.HasLine(lineId))
+            {
+                return NotFound();
+            }
+            // if timecard isn't a draft, it can't be edited
+            else if (timeCard.Status != TimecardStatus.Draft)
+            {
+                return StatusCode(409, new InvalidStateError() { });
+            }
+
+            // This now tries to update only the parts of the line that are in
+            // the PATCH parameters while trying to leave other fields unchanged
+            // but if there's an error while parsing then return a 409.
+            TimecardLine resultLine = new TimecardLine();
+            try
+            {
+                resultLine = timeCard.ReplaceLine(lineId, line);
+            }
+            catch (Exception e)
+            {
+                return StatusCode(409, new InvalidStateError() { });
+            }
+            return Ok(resultLine);
+        }
+
+        // When approving, timecard approver cannot be same as timecard resource
+        [HttpPost("{id}/approval")]
+        [Produces(ContentTypes.Transition)]
+        [ProducesResponseType(typeof(Transition), 200)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(typeof(InvalidStateError), 409)]
+        [ProducesResponseType(typeof(EmptyTimecardError), 409)]
+        [ProducesResponseType(typeof(CannotApproveSelfError), 409)]
+        public IActionResult Approve(string id, [FromBody] Approval approval)
+        {
+            Timecard timecard = Database.Find(id);
+
+            if (timecard != null)
+            {
+                if (timecard.Status != TimecardStatus.Submitted)
+                {
+                    return StatusCode(409, new InvalidStateError() { });
+                }
+
+                // This verifies that timecard approver is not timecard resource
+                if (approval.Resource == timecard.Resource)
+                {
+                    return StatusCode(409, new CannotApproveSelfError());
+                }
+
+                var transition = new Transition(approval, TimecardStatus.Approved);
+                timecard.Transitions.Add(transition);
+                return Ok(transition);
             }
             else
             {
@@ -70,7 +193,7 @@ namespace restapi.Controllers
                     return StatusCode(409, new InvalidStateError() { });
             }
 
-            Database.Delete(id);
+            Database.Delete(timecard);
             return Ok();
         }
 
@@ -274,6 +397,7 @@ namespace restapi.Controllers
             }
         }
 
+
         [HttpGet("{id}/cancellation")]
         [Produces(ContentTypes.Transition)]
         [ProducesResponseType(typeof(Transition), 200)]
@@ -356,33 +480,6 @@ namespace restapi.Controllers
                 {
                     return StatusCode(409, new MissingTransitionError() { });
                 }
-            }
-            else
-            {
-                return NotFound();
-            }
-        }
-        
-        [HttpPost("{id}/approval")]
-        [Produces(ContentTypes.Transition)]
-        [ProducesResponseType(typeof(Transition), 200)]
-        [ProducesResponseType(404)]
-        [ProducesResponseType(typeof(InvalidStateError), 409)]
-        [ProducesResponseType(typeof(EmptyTimecardError), 409)]
-        public IActionResult Approve(string id, [FromBody] Approval approval)
-        {
-            Timecard timecard = Database.Find(id);
-
-            if (timecard != null)
-            {
-                if (timecard.Status != TimecardStatus.Submitted)
-                {
-                    return StatusCode(409, new InvalidStateError() { });
-                }
-                
-                var transition = new Transition(approval, TimecardStatus.Approved);
-                timecard.Transitions.Add(transition);
-                return Ok(transition);
             }
             else
             {

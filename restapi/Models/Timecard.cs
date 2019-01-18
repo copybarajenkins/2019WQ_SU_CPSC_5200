@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -85,7 +84,31 @@ namespace restapi.Models
                         Relationship = ActionRelationship.RecordLine,
                         Reference = $"/timesheets/{Identity.Value}/lines"
                     });
-                
+
+                    links.Add(new ActionLink()
+                    {
+                        Method = Method.Post,
+                        Type = ContentTypes.TimesheetLine,
+                        Relationship = ActionRelationship.ReplaceLine,
+                        Reference = $"/timesheets/{Identity.Value}/lines/" + "{lineId}"
+                    });
+
+                    links.Add(new ActionLink()
+                    {
+                        Method = Method.Patch,
+                        Type = ContentTypes.TimesheetLine,
+                        Relationship = ActionRelationship.UpdateLine,
+                        Reference = $"/timesheets/{Identity.Value}/lines/" + "{lineId}"
+                    });
+
+                    links.Add(new ActionLink()
+                    {
+                        Method = Method.Delete,
+                        Type = ContentTypes.Timesheet,
+                        Relationship = ActionRelationship.Delete,
+                        Reference = $"/timesheets/{Identity.Value}"
+                    });
+
                     break;
 
                 case TimecardStatus.Submitted:

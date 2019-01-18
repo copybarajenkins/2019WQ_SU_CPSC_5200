@@ -20,4 +20,18 @@ namespace restapi.Models
 
         public string Message { get => "No state transition of requested type present in timecard"; }
     }
+
+    public class CannotApproveSelfError
+    {
+        public int ErrorCode { get => 103; }
+
+        public string Message { get => "Timecard approver cannot be same as timecard resource"; }
+    }
+
+    public class InconsistentResourceError
+    {
+        public int ErrorCode { get => 104; }
+
+        public string Message { get => "Resource can only submit or update own timecard"; }
+    }
 }

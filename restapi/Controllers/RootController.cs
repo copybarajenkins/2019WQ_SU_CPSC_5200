@@ -26,7 +26,8 @@ namespace restapi.Controllers
                             Relationship = DocumentRelationship.Timesheets,
                             Reference = "/timesheets"
                         },   
-                         new DocumentLink() 
+                         // This creates a new timesheet from POSTing to root controller
+                         new DocumentLink()
                         { 
                             Method = Method.Post,
                             Type = ContentTypes.Timesheet,

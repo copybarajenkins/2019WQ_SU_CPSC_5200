@@ -40,28 +40,31 @@ namespace restapi.Controllers
 
         // Remove (DELETE) a draft or cancelled timecard
         [HttpDelete("{id}")]
-        [Produces(ContentTypes.Transition)]
         [ProducesResponseType(200)]
         [ProducesResponseType(404)]
         [ProducesResponseType(typeof(InvalidStateError), 409)]
-        public IActionResult deleteTimecard(string id) {
+        public IActionResult DeleteTimecard(string id, Deletion deletion)
+        {
+            Timecard timecard = Database.Find(id);
 
-            Timecard timeCard = Database.Find(id);
-            if (timeCard == null)
+            if (timecard == null)
             {
                 return NotFound();
             }
 
-            if (!timeCard.CanBeDeleted())
+            if (timecard.CanBeDeleted() == false)
             {
                 return StatusCode(409, new InvalidStateError() { });
-
             }
 
-            Database.Delete(timeCard);
+            // This verifies that timecard deleter is timecard resource
+            if (deletion.Resource != timecard.Resource)
+            {
+                return StatusCode(409, new ResourceDoesNotManageError());
+            }
 
-            Transition transition = new Transition(new Deletion());
-            return Ok(transition);
+            Database.Delete(timecard);
+            return Ok();
         }
 
         // Replace (POST) a complete line item
@@ -69,7 +72,7 @@ namespace restapi.Controllers
         [ProducesResponseType(typeof(AnnotatedTimecardLine), 200)]
         [ProducesResponseType(404)]
         [ProducesResponseType(typeof(InvalidStateError), 409)]
-        public IActionResult replaceLine(string id, Guid lineId, [FromBody] TimecardLine line)
+        public IActionResult ReplaceLine(string id, Guid lineId, [FromBody] TimecardLine line)
         {
             Timecard timeCard = Database.Find(id);
             // if timecard not found, or line not in timecard, return not found
@@ -81,6 +84,10 @@ namespace restapi.Controllers
             else if (timeCard.Status != TimecardStatus.Draft)
             {
                 return StatusCode(409, new InvalidStateError() { });
+            }
+            else if (!timeCard.HasLine(lineId))
+            {
+                return NotFound();
             }
 
             // This now completely replaces the existing line with
@@ -96,7 +103,7 @@ namespace restapi.Controllers
         [ProducesResponseType(404)]
         [ProducesResponseType(typeof(AnnotatedTimecardLine), 200)]
         [ProducesResponseType(typeof(InvalidStateError), 409)]
-        public IActionResult updateLine(string id, Guid lineId, [FromBody] JObject line)
+        public IActionResult UpdateLine(string id, Guid lineId, [FromBody] JObject line)
         {
             Timecard timeCard = Database.Find(id);
             // if timecard not found, or line not in timecard, return not found
@@ -108,6 +115,10 @@ namespace restapi.Controllers
             else if (timeCard.Status != TimecardStatus.Draft)
             {
                 return StatusCode(409, new InvalidStateError() { });
+            }
+            else if (!timeCard.HasLine(lineId))
+            {
+                return NotFound();
             }
 
             // This now tries to update only the parts of the line that are in
@@ -176,27 +187,6 @@ namespace restapi.Controllers
             return timecard;
         }
 
-        [HttpDelete("{id}")]
-        [ProducesResponseType(200)]
-        [ProducesResponseType(404)]
-        public IActionResult DeleteLine(string id)
-        {
-            Timecard timecard = Database.Find(id);
-
-            if (timecard == null)
-            {
-                return NotFound();
-            }
-
-            if (timecard.CanBeDeleted() == false)
-            {
-                return StatusCode(409, new InvalidStateError() { });
-            }
-
-            Database.Delete(timecard);
-            return Ok();
-        }
-
         [HttpGet("{id}/lines")]
         [Produces(ContentTypes.TimesheetLines)]
         [ProducesResponseType(typeof(IEnumerable<AnnotatedTimecardLine>), 200)]
@@ -243,50 +233,6 @@ namespace restapi.Controllers
             {
                 return NotFound();
             }
-        }
-
-        [HttpPost("{timecardId}/lines/{lineId}")]
-        public IActionResult ReplaceLine(string timecardId, Guid lineId, [FromBody] TimecardLine timecardLine)
-        {
-            Timecard timecard = Database.Find(timecardId);
-
-            if (timecard == null)
-            {
-                return NotFound();
-            }
-
-            if (timecard.HasLine(lineId) == false)
-            {
-                // this might be better served by using some other 4xx error
-                // because there's actually a problem with both the resource
-                // we're updating and the request
-                return NotFound();
-            }
-
-            var result = timecard.ReplaceLine(lineId, timecardLine);
-            return Ok(result);
-        }
-
-        [HttpPatch("{timecardId}/lines/{lineId}")]
-        public IActionResult UpdateLine(string timecardId, Guid lineId, [FromBody] dynamic timecardLine)
-        {
-            Timecard timecard = Database.Find(timecardId);
-
-            if (timecard == null)
-            {
-                return NotFound();
-            }
-
-            if (timecard.HasLine(lineId) == false)
-            {
-                // this might be better served by using some other 4xx error
-                // because there's actually a problem with both the resource
-                // we're updating and the request
-                return NotFound();
-            }
-
-            var result = timecard.ReplaceLine(lineId, timecardLine);
-            return Ok(result);
         }
 
         [HttpGet("{id}/transitions")]

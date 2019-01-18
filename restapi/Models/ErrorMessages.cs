@@ -35,6 +35,13 @@ namespace restapi.Models
         public string Message { get => "Timecard rejector cannot be same as timecard resource"; }
     }
 
+    public class ResourceDoesNotManageError
+    {
+        public int ErrorCode { get => 104; }
+
+        public string Message { get => "Resource does not manage this timecard"; }
+    }
+
     public class InconsistentResourceError
     {
         public int ErrorCode { get => 104; }

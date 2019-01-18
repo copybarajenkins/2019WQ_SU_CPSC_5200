@@ -190,7 +190,7 @@ namespace restapi.Controllers
 
             if (timecard.CanBeDeleted() == false)
             {
-                    return StatusCode(409, new InvalidStateError() { });
+                return StatusCode(409, new InvalidStateError() { });
             }
 
             Database.Delete(timecard);
@@ -328,7 +328,13 @@ namespace restapi.Controllers
                 {
                     return StatusCode(409, new EmptyTimecardError() { });
                 }
-                
+
+                // For consistency, only resource can submit a timecard for that resource
+                if (timecard.Resource != submittal.Resource)
+                {
+                    return StatusCode(409, new InconsistentResourceError() { });
+                }
+
                 var transition = new Transition(submittal, TimecardStatus.Submitted);
                 timecard.Transitions.Add(transition);
                 return Ok(transition);
@@ -386,7 +392,13 @@ namespace restapi.Controllers
                 {
                     return StatusCode(409, new InvalidStateError() { });
                 }
-                
+
+                // For consistency, only resource can submit a timecard for that resource
+                if (timecard.Resource != cancellation.Resource)
+                {
+                    return StatusCode(409, new InconsistentResourceError() { });
+                }
+
                 var transition = new Transition(cancellation, TimecardStatus.Cancelled);
                 timecard.Transitions.Add(transition);
                 return Ok(transition);
@@ -445,7 +457,13 @@ namespace restapi.Controllers
                 {
                     return StatusCode(409, new InvalidStateError() { });
                 }
-                
+
+                // For consistency, resource cannot reject own timecard
+                if (timecard.Resource == rejection.Resource)
+                {
+                    return StatusCode(409, new CannotRejectSelfError() { });
+                }
+
                 var transition = new Transition(rejection, TimecardStatus.Rejected);
                 timecard.Transitions.Add(transition);
                 return Ok(transition);

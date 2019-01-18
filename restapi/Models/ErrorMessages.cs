@@ -28,6 +28,13 @@ namespace restapi.Models
         public string Message { get => "Timecard approver cannot be same as timecard resource"; }
     }
 
+    public class CannotRejectSelfError
+    {
+        public int ErrorCode { get => 103; }
+
+        public string Message { get => "Timecard rejector cannot be same as timecard resource"; }
+    }
+
     public class InconsistentResourceError
     {
         public int ErrorCode { get => 104; }
